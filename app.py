@@ -1,11 +1,11 @@
 from flask import Flask, request
 import requests
 import json
-
+import os
 
 app = Flask(__name__)
 
-GOOGLE_CHAT_WEBHOOK = "https://chat.googleapis.com/v1/spaces/AAQA4gwdpHQ/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=LImmQc57oGth_ybsOB3cw4PQuuaNr2NOi9W-sdkNISs"
+GOOGLE_CHAT_WEBHOOK = os.getenv("GOOGLE_CHAT_WEBHOOK")
 
 # 🔹 Site mapping (still hardcoded exact matches)
 SITE_ENV_MAP = {
