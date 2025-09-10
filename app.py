@@ -12,6 +12,7 @@ def home():
 @app.route("/frappe-cloud-webhook", methods=["POST"])
 def handle_webhook():
     payload = request.json
+    print(payload)
     event = payload.get("event", "Unknown Event")
     data = payload.get("data", {})
 
