@@ -20,14 +20,12 @@ def handle_webhook():
     json_string = json.dumps(data)
 
     # Format message nicely
-    message = f"""
-📢 *Frappe Cloud Event*: {event}
+    message = f"""📢 *Frappe Cloud Event*: {event}
 
-🌐 Site: {data.get('site')}
-🔄 Change Type: {data.get('type')}
-👤 Modified By: {data.get('modified_by')}
-🕒 Time: {data.get('timestamp')}
-  Payload: {json_string}
+{data.get('doctype')}: {data.get('name')}
+status: {data.get('status')}
+Modified By: {data.get('modified_by')}
+Time: {data.get('modified')}
     """
     print(message)
     requests.post(GOOGLE_CHAT_WEBHOOK, json={"text": message})
