@@ -11,19 +11,14 @@ GOOGLE_CHAT_WEBHOOK = "https://chat.googleapis.com/v1/spaces/AAQA4gwdpHQ/message
 SITE_ENV_MAP = {
     "waseela.frappe.cloud": "Staging",
     "waseela-os-preview.s.frappe.cloud": "Preview",
+    "waseela-os-production.s.frappe.cloud": "Production"
 }
 
-def get_bench_env(bench_name: str) -> str:
-    """Return environment name based on bench patterns."""
-    if not bench_name:
-        return "Unknown"
-    if "bench-17853" in bench_name:
-        return "Staging"
-    if "bench-25861" in bench_name:
-        return "Preview"
-    if "bench-25568" in bench_name:
-        return "Production"
-    return bench_name  # default fallback
+BENCH_ENV_MAP = {
+    "bench-17853": "Staging",
+    "bench-25861": "Preview",
+    "bench-25568": "Production"
+}
 
 @app.route("/", methods=["GET"])
 def home():
@@ -38,7 +33,7 @@ def handle_webhook():
     json_string = json.dumps(data)
     environment_name = ""
     if data.get('doctype') == "Bench":
-        environment_name = get_bench_env(data.get('name'))
+        environment_name = BENCH_ENV_MAP[data.get('group')]
     elif data.get('doctype') == "Site":
         environment_name = SITE_ENV_MAP[data.get('name')]
 
