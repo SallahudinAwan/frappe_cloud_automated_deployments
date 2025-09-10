@@ -13,10 +13,17 @@ SITE_ENV_MAP = {
     "waseela-os-preview.s.frappe.cloud": "Preview",
 }
 
-BENCH_ENV_MAP = {
-    "bench-17853": "Staging",
-    "bench-25861": "Preview",
-}
+def get_bench_env(bench_name: str) -> str:
+    """Return environment name based on bench patterns."""
+    if not bench_name:
+        return "Unknown"
+    if "bench-17853" in bench_name:
+        return "Staging"
+    if "bench-25861" in bench_name:
+        return "Preview"
+    if "bench-25568" in bench_name:
+        return "Production"
+    return bench_name  # default fallback
 
 @app.route("/", methods=["GET"])
 def home():
@@ -31,7 +38,7 @@ def handle_webhook():
     json_string = json.dumps(data)
     environment_name = ""
     if data.get('doctype') == "Bench":
-        environment_name = BENCH_ENV_MAP[data.get('group')]
+        environment_name = get_bench_env(data.get('name'))
     elif data.get('doctype') == "Site":
         environment_name = SITE_ENV_MAP[data.get('name')]
 
