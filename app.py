@@ -11,12 +11,20 @@ def home():
 
 @app.route("/frappe-cloud-webhook", methods=["POST"])
 def handle_webhook():
-    data = request.json
+    payload = request.json
+    event = payload.get("event", "Unknown Event")
+    data = payload.get("data", {})
+
+    # Format message nicely
     message = f"""
-📢 Event: {data.get('event')}
+📢 *Frappe Cloud Event*: {event}
+
 🌐 Site: {data.get('site')}
-🕒 Time: {data.get('time')}
-"""
+🔄 Change Type: {data.get('type')}
+👤 Modified By: {data.get('modified_by')}
+🕒 Time: {data.get('timestamp')}
+    """
+
     requests.post(GOOGLE_CHAT_WEBHOOK, json={"text": message})
     return "ok", 200
 
