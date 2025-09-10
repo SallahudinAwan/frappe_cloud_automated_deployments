@@ -1,5 +1,7 @@
 from flask import Flask, request
 import requests
+import json
+
 
 app = Flask(__name__)
 
@@ -15,6 +17,7 @@ def handle_webhook():
     print(payload)
     event = payload.get("event", "Unknown Event")
     data = payload.get("data", {})
+    json_string = json.dumps(data)
 
     # Format message nicely
     message = f"""
@@ -24,8 +27,9 @@ def handle_webhook():
 🔄 Change Type: {data.get('type')}
 👤 Modified By: {data.get('modified_by')}
 🕒 Time: {data.get('timestamp')}
+  Payload: {json_string}
     """
-
+    print(message)
     requests.post(GOOGLE_CHAT_WEBHOOK, json={"text": message})
     return "ok", 200
 
