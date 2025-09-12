@@ -59,5 +59,42 @@ Time: {data.get('modified')}
     
     return "ok", 200
 
+@app.route("/frappe-cloud-webhook-for-deploy", methods=["POST"])
+def handle_webhook_for_deploy():
+    payload = request.json
+    print(payload)
+    event = payload.get("event", "Unknown Event")
+    data = payload.get("data", {})
+    json_string = json.dumps(data)
+    environment_name = ""
+    if data.get('doctype') == "Bench":
+        environment_name = BENCH_ENV_MAP[data.get('group')]
+    elif data.get('doctype') == "Site":
+        environment_name = SITE_ENV_MAP[data.get('name')]
+
+    # Format message nicely
+    message = f"""📢 *[ {environment_name} ] Frappe Cloud Event*: {event}
+        
+{data.get('doctype')}: {data.get('name')}
+status: {data.get('status')}
+Modified By: {data.get('modified_by')}
+Time: {data.get('modified')}
+    """
+    print(message)
+    print(GOOGLE_CHAT_WEBHOOK)
+    requests.post(GOOGLE_CHAT_WEBHOOK, json={"text": message})
+    
+    if data.get('doctype') == "Site" and data.get('status') == "Active":
+        # Format message nicely
+        completed_message = f"""📢 *[ {environment_name} ] Frappe Cloud Event*: Deployment Completed ✅
+            
+{data.get('doctype')}: {data.get('name')}
+Time: {data.get('modified')}
+        """
+        requests.post(GOOGLE_CHAT_WEBHOOK, json={"text": completed_message})
+    
+    return "ok", 200
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)
