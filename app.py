@@ -1,4 +1,4 @@
-from flask import Flask, request
+from flask import Flask, request, jsonify
 import requests
 import json
 import os
@@ -6,6 +6,7 @@ import os
 app = Flask(__name__)
 
 GOOGLE_CHAT_WEBHOOK = os.getenv("GOOGLE_CHAT_WEBHOOK")
+GITHUB_TOKEN   = os.getenv("GITHUB_TOKEN")
 
 # 🔹 Site mapping (still hardcoded exact matches)
 SITE_ENV_MAP = {
@@ -59,41 +60,34 @@ Time: {data.get('modified')}
     
     return "ok", 200
 
-@app.route("/frappe-cloud-webhook-for-deploy", methods=["POST"])
-def handle_webhook_for_deploy():
-    payload = request.json
-    print(payload)
-    event = payload.get("event", "Unknown Event")
-    data = payload.get("data", {})
-    json_string = json.dumps(data)
-    environment_name = ""
-    if data.get('doctype') == "Bench":
-        environment_name = BENCH_ENV_MAP[data.get('group')]
-    elif data.get('doctype') == "Site":
-        environment_name = SITE_ENV_MAP[data.get('name')]
 
-    # Format message nicely
-    message = f"""📢 *[ {environment_name} ] Frappe Cloud Event*: {event}
-        
-{data.get('doctype')}: {data.get('name')}
-status: {data.get('status')}
-Modified By: {data.get('modified_by')}
-Time: {data.get('modified')}
-    """
-    print(message)
-    print(GOOGLE_CHAT_WEBHOOK)
-    requests.post(GOOGLE_CHAT_WEBHOOK, json={"text": message})
-    
-    if data.get('doctype') == "Site" and data.get('status') == "Active":
-        # Format message nicely
-        completed_message = f"""📢 *[ {environment_name} ] Frappe Cloud Event*: Deployment Completed ✅
-            
-{data.get('doctype')}: {data.get('name')}
-Time: {data.get('modified')}
-        """
-        requests.post(GOOGLE_CHAT_WEBHOOK, json={"text": completed_message})
-    
-    return "ok", 200
+@app.route("/trigger-workflow", methods=["POST"])
+def trigger_workflow():
+    try:
+        ref = "master"
+
+        url = "https://api.github.com/repos/Waseela-Global/frappe_auto_deployments/actions/workflows/187848153/dispatches"
+
+        headers = {
+            "Authorization": f"Bearer {GITHUB_TOKEN}",
+            "Accept": "application/vnd.github+json"
+        }
+
+        payload = {"ref": ref}
+
+        resp = requests.post(url, headers=headers, json=payload)
+
+        if resp.status_code == 204:
+            return jsonify({"status": "success", "message": "Workflow triggered"}), 200
+        else:
+            return jsonify({
+                "status": "error",
+                "code": resp.status_code,
+                "response": resp.json()
+            }), resp.status_code
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 if __name__ == "__main__":
