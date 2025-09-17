@@ -56,7 +56,7 @@ def get_state(environment_name):
 
 def set_state(new_state):
     with engine.begin() as conn:
-        conn.execute(text("UPDATE deployment_lock SET state=:state, updated_at=CURRENT_TIMESTAMP WHERE id='Staging'"),
+        conn.execute(text("UPDATE deployment_lock SET state=:state,apps_deployed = NULL, updated_at=CURRENT_TIMESTAMP WHERE id='Staging'"),
                      {"state": new_state})
 
 @app.route("/", methods=["GET"])
@@ -80,7 +80,9 @@ def handle_webhook():
         environment_name = BENCH_ENV_MAP[data.get('group')]
     elif data.get('doctype') == "Site":
         environment_name = SITE_ENV_MAP[data.get('name')]
-
+    
+    current_db_state = get_state(environment_name)
+    
     # Format message nicely
     message = f"""📢 *[ {environment_name} ] Frappe Cloud Event*: {event}
         
@@ -102,7 +104,6 @@ Time: {data.get('modified')}
 Time: {data.get('modified')}
         """
         
-        current_db_state = get_state(environment_name) 
         apps_info_str = current_db_state[1]
         # Add apps only if they exist
         if apps_info_str:
