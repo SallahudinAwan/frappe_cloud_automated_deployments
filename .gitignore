@@ -1,3 +1,4 @@
 # Python virtual environment
 venv/
-.env/
+.vscode
+deployment_lock.db
