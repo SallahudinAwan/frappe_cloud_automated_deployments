@@ -12,7 +12,13 @@ GITHUB_TOKEN   = os.getenv("GITHUB_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")  # default to SQLite
 
 # 🔹 SQLAlchemy engine
-engine = create_engine(DATABASE_URL, echo=False, future=True)
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,          # ✅ test connections before using
+    pool_recycle=300,            # ✅ recycle connections every 5 minutes
+    pool_size=5,
+    max_overflow=10
+)
 
 # 🔹 Site mapping (still hardcoded exact matches)
 SITE_ENV_MAP = {
