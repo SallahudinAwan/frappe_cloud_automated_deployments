@@ -150,7 +150,12 @@ def trigger_workflow(env):
             "Authorization": f"Bearer {GITHUB_TOKEN}",
             "Accept": "application/vnd.github+json"
         }
-        payload = {"ref": "master"}
+        payload = {
+            "ref": "master",
+            "inputs": {
+                "deploy_env": env.lower()   # 👈 custom input
+            }    
+        }
         resp = requests.post(url, headers=headers, json=payload)
 
         if resp.status_code == 204:
@@ -239,16 +244,17 @@ def format_failure_message(env, candidate, title, html_message, traceback_text,
 @app.route("/check-deploy-failure/<env>", methods=["GET"])
 def check_deploy_failure(env):
     try:
-        state, _, candidate = get_state(env)
+        state, apps, candidate = get_state(env)
         if state != "in_progress" or not candidate:
-            return jsonify({"status": "idle", "message": "No active deployment to check"}), 200
+            return jsonify({"status": "idle", "message": "No active deployment to check"}), 202
 
-        # Step 1: Check Press Notifications
-        url_list = "https://frappecloud.com/api/method/press.api.client.get_list"
         headers = {
             "Authorization": f"token {FC_API_KEY}:{FC_API_SECRET}",
             "Content-Type": "application/json"
         }
+
+        # --- Step 1: Check Notifications ---
+        url_list = "https://frappecloud.com/api/method/press.api.client.get_list"
         payload_list = {
             "doctype": "Press Notification",
             "fields": ["title", "name"],
@@ -265,31 +271,73 @@ def check_deploy_failure(env):
         resp.raise_for_status()
         notifications = resp.json().get("message", [])
 
-        if not notifications:
-            return jsonify({"status": "in_progress", "message": "No errors detected yet"}), 200
+        if notifications:
+            notif_id = notifications[0]["name"]
 
-        notif_id = notifications[0]["name"]
+            # Fetch full error details
+            url_get = "https://frappecloud.com/api/method/press.api.client.get"
+            payload_get = {"doctype": "Press Notification", "name": notif_id}
+            resp2 = requests.post(url_get, headers=headers, json=payload_get)
+            resp2.raise_for_status()
+            notif_detail = resp2.json().get("message", {})
 
-        # Step 2: Fetch full error details
-        url_get = "https://frappecloud.com/api/method/press.api.client.get"
-        payload_get = {"doctype": "Press Notification", "name": notif_id}
-        resp2 = requests.post(url_get, headers=headers, json=payload_get)
-        resp2.raise_for_status()
-        notif_detail = resp2.json().get("message", {})
+            title = notif_detail.get("title")
+            html_message = notif_detail.get("message")
+            traceback_info = notif_detail.get("traceback", "")
+
+            # Reset lock
+            set_state(env, "idle", None, None)
+            chat_text = format_failure_message(env, candidate, title, html_message, traceback_info)
+
+            if GOOGLE_CHAT_WEBHOOK:
+                requests.post(GOOGLE_CHAT_WEBHOOK, json={"text": chat_text})
+
+            return jsonify({"status": "failure", "error": chat_text}), 202
+
+        # --- Step 2: Fallback to Candidate Build Status ---
+        url_candidate = "https://frappecloud.com/api/method/press.api.client.get"
+        payload_candidate = {"doctype": "Deploy Candidate Build", "name": candidate}
+        resp3 = requests.post(url_candidate, headers=headers, json=payload_candidate)
+        resp3.raise_for_status()
+        candidate_info = resp3.json().get("message", {})
+
+        status = candidate_info.get("status")
+        steps = candidate_info.get("build_steps", [])
+
+        # Find the failing step if any
+        failed_step = None
+        for step in steps:
+            if step.get("status") == "Failure":
+                failed_step = f"{step.get('stage')} → {step.get('step')}"
+                break
+
+        if status == "Failure":
+            set_state(env, "idle", None, None)
+            if failed_step:
+                chat_text = f"""❌ *[{env.capitalize()}] Deployment Failed*  
+    
+*Deploy Candidate:* {candidate}  
+*Failed at step:* {failed_step}
+
+*Apps Deployed Failed:*
+{apps}
+"""
+            else:
+                chat_text = f"""❌ *[{env.capitalize()}] Deployment Failed*  
+    
+Deploy Candidate: {candidate}  
+Failed step unknown (check logs)
+
+*Apps Deployed Failed:*
+{apps}
+"""
+
+            if GOOGLE_CHAT_WEBHOOK:
+                requests.post(GOOGLE_CHAT_WEBHOOK, json={"text": chat_text})
+
+            return jsonify({"status": "failure", "error": chat_text}), 202
         
-        title = notif_detail.get("title")
-        html_message = notif_detail.get("message")
-        traceback_info = notif_detail.get("traceback", "")
-
-        # Step 3: Reset lock
-        set_state(env, "idle", None, None)
-        chat_text = format_failure_message(env, candidate, title, html_message, traceback_info)
-
-        if GOOGLE_CHAT_WEBHOOK:
-            requests.post(GOOGLE_CHAT_WEBHOOK, json={"text": chat_text})
-
-        return jsonify({"status": "failure", "error": chat_text}), 200
-
+        return jsonify({"status": "Normal", "error": "No Error Detected Yet"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
