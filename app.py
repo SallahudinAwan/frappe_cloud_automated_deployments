@@ -109,7 +109,7 @@ def handle_webhook():
     payload_str = json.dumps(payload, indent=2)
 
     environment_name = ""
-    if data.get("doctype") == "Bench":
+    if data.get("doctype") == "Bench" or data.get("doctype") == "Deploy Candidate Build":
         environment_name = BENCH_ENV_MAP.get(data.get("group"), "")
     elif data.get("doctype") == "Site":
         environment_name = SITE_ENV_MAP.get(data.get("name"), "")
