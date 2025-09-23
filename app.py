@@ -104,6 +104,9 @@ def handle_webhook():
     print(payload)
     event = payload.get("event", "Unknown Event")
     data = payload.get("data", {})
+    
+    # 🔹 Pretty JSON dump of payload
+    payload_str = json.dumps(payload, indent=2)
 
     environment_name = ""
     if data.get("doctype") == "Bench":
@@ -119,6 +122,10 @@ def handle_webhook():
 Status: {data.get('status')}
 Modified By: {data.get('modified_by')}
 Time: {data.get('modified')}
+
+*Raw Payload:*  
+```json
+{payload_str}
 """
     if GOOGLE_CHAT_WEBHOOK:
         requests.post(GOOGLE_CHAT_WEBHOOK, json={"text": message})
