@@ -101,6 +101,7 @@ def status(env):
 @app.route("/frappe-cloud-webhook", methods=["POST"])
 def handle_webhook():
     payload = request.json
+    print(payload)
     event = payload.get("event", "Unknown Event")
     data = payload.get("data", {})
 
@@ -156,6 +157,7 @@ def trigger_workflow(env):
                 "deploy_env": env.lower()   # 👈 custom input
             }    
         }
+        print(payload)
         resp = requests.post(url, headers=headers, json=payload)
 
         if resp.status_code == 204:
