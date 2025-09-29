@@ -36,6 +36,13 @@ BENCH_ENV_MAP = {
     "bench-25568": "Production"
 }
 
+# --- Allowed statuses map ---
+ALLOWED_STATUS_MAP = {
+    "Bench": {"Installing", "Updating", "Active", "Broken"}, # "Pending, Installing, Updating, Active, Broken, Archived"
+    "Site": {"Pending", "Installing", "Updating", "Active", "Inactive", "Broken", "Archived", "Suspended"}, # "Pending, Installing, Updating, Active, Inactive, Broken, Archived, Suspended"
+    "Deploy Candidate Build": {"Draft", "Scheduled", "Running", "Success", "Failure"} # "Draft, Scheduled, Pending, Preparing, Running, Success, Failure"
+}
+
 # --- DB Helpers ---
 def init_db():
     """Create table if not exists and ensure rows for all environments"""
@@ -103,19 +110,29 @@ def handle_webhook():
     payload = request.json
     event = payload.get("event", "Unknown Event")
     data = payload.get("data", {})
+    
+    doctype = data.get("doctype")
+    status = data.get("status")
+
+    
+    # 🔒 Filter out disallowed statuses
+    allowed_statuses = ALLOWED_STATUS_MAP.get(doctype)
+    if allowed_statuses is not None and status not in allowed_statuses:
+        return jsonify({"status": "skipped", "reason": f"{doctype} status '{status}' not allowed"}), 200
+
 
     environment_name = ""
-    if data.get("doctype") == "Bench" or data.get("doctype") == "Deploy Candidate Build":
+    if doctype == "Bench" or doctype == "Deploy Candidate Build":
         environment_name = BENCH_ENV_MAP.get(data.get("group"), "")
-    elif data.get("doctype") == "Site":
+    elif doctype == "Site":
         environment_name = SITE_ENV_MAP.get(data.get("name"), "")
 
     current_db_state = get_state(environment_name)
 
     # 🔹 Send update message
     message = f"""📢 *[ {environment_name} ] Frappe Cloud Event*: {event}
-{data.get('doctype')}: {data.get('name')}
-Status: {data.get('status')}
+{doctype}: {data.get('name')}
+Status: {status}
 Modified By: {data.get('modified_by')}
 Time: {data.get('modified')}
 """
@@ -123,11 +140,11 @@ Time: {data.get('modified')}
         requests.post(GOOGLE_CHAT_WEBHOOK, json={"text": message})
 
     # 🔹 Reset lock when site is active again
-    if data.get("doctype") == "Site" and data.get("status") == "Active":
+    if doctype == "Site" and status == "Active":
         set_state(environment_name, "idle", None, None)
 
         completed_message = f"""✅ *[ {environment_name} ] Deployment Completed*
-{data.get('doctype')}: {data.get('name')}
+{doctype}: {data.get('name')}
 Time: {data.get('modified')}
 """
         apps_info_str = current_db_state[1]
@@ -137,6 +154,9 @@ Time: {data.get('modified')}
         if GOOGLE_CHAT_WEBHOOK:
             requests.post(GOOGLE_CHAT_WEBHOOK, json={"text": completed_message})
 
+    if doctype == "Deploy Candidate Build" and status == "Failure":
+        check_deploy_failure(environment_name)
+    
     return "Webhook processed", 200
 
 @app.route("/trigger-workflow/<env>", methods=["POST"])
@@ -326,8 +346,8 @@ def check_deploy_failure(env):
             else:
                 chat_text = f"""❌ *[{env.capitalize()}] Deployment Failed*  
     
-Deploy Candidate: {candidate}  
-Failed step unknown (check logs)
+*Deploy Candidate:* {candidate}  
+*Failed step:* unknown (check logs)
 
 *Apps Deployed Failed:*
 {apps}
