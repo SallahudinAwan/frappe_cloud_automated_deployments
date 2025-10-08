@@ -9,6 +9,7 @@ import html
 app = Flask(__name__)
 
 GOOGLE_CHAT_WEBHOOK = os.getenv("GOOGLE_CHAT_WEBHOOK")
+GOOGLE_CHAT_WEBHOOK_TESING = os.getenv("GOOGLE_CHAT_WEBHOOK_TESING")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
 FC_API_KEY = os.getenv("FC_API_KEY")
@@ -117,8 +118,8 @@ def github_webhook():
                   f"Payload:\n```\n{payload_str[:4000]}\n```"  # Google Chat max 4k chars
 
         # Send to Google Chat (if configured)
-        if GOOGLE_CHAT_WEBHOOK:
-            requests.post(GOOGLE_CHAT_WEBHOOK, json={"text": message})
+        if GOOGLE_CHAT_WEBHOOK_TESING:
+            requests.post(GOOGLE_CHAT_WEBHOOK_TESING, json={"text": message})
 
         # Also return JSON response
         return jsonify({
