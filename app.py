@@ -186,7 +186,7 @@ def github_webhook():
                     f"🔗 {url}"
                     f"{pr_text}"
                 )
-                send_chat_message(message)
+                requests.post(GOOGLE_CHAT_WEBHOOK_TESING, json={"text": message})
 
         return jsonify({"status": "ok"}), 200
 
