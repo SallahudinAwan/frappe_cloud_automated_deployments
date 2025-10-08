@@ -140,7 +140,31 @@ def github_webhook():
                 )
                 
                 requests.post(GOOGLE_CHAT_WEBHOOK_TESING, json={"text": message})
+        # ---------------- Workflow Run Events ----------------
+        elif event == "workflow_run":
+            workflow = payload.get("workflow", {})
+            workflow_name = workflow.get("name", "Unknown Workflow")
+            run = payload.get("workflow_run", {})
+            conclusion = run.get("conclusion")
+            status = run.get("status")
 
+            if conclusion == "failure":  # Only send alerts for failures
+                actor = run.get("actor", {}).get("login", "unknown")
+                repo = payload["repository"]["full_name"]
+                url = run.get("html_url")
+                time = run.get("updated_at") or run.get("created_at")
+                time = datetime.fromisoformat(time.replace("Z", "+00:00")).strftime("%Y-%m-%d %H:%M:%S")
+
+                message = (
+                    f"🚨 *Workflow Failed*\n"
+                    f"⚙️ *Workflow*: {workflow_name}\n"
+                    f"📂 *Repository*: {repo}\n"
+                    f"👤 *Triggered By*: {actor}\n"
+                    f"🗓️ *Time*: {time}\n"
+                    f"🔗 {url}"
+                )
+                requests.post(GOOGLE_CHAT_WEBHOOK_TESING, json={"text": message})
+        
         return jsonify({"status": "ok"}), 200
 
     except Exception as e:
