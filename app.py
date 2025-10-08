@@ -6,6 +6,7 @@ import os
 import re
 import html
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 app = Flask(__name__)
 
@@ -44,6 +45,16 @@ ALLOWED_STATUS_MAP = {
     "Site": {"Pending", "Installing", "Updating", "Active", "Inactive", "Broken", "Archived", "Suspended"}, # "Pending, Installing, Updating, Active, Inactive, Broken, Archived, Suspended"
     "Deploy Candidate Build": {"Draft", "Scheduled", "Running", "Success", "Failure"} # "Draft, Scheduled, Pending, Preparing, Running, Success, Failure"
 }
+
+
+
+def to_pakistan_time(utc_time_str):
+    # Parse GitHub UTC time
+    dt_utc = datetime.fromisoformat(utc_time_str.replace("Z", "+00:00"))
+    # Convert to Pakistan Standard Time
+    dt_pkt = dt_utc.astimezone(ZoneInfo("Asia/Karachi"))
+    return dt_pkt.strftime("%Y-%m-%d %H:%M:%S")
+
 
 # --- DB Helpers ---
 def init_db():
@@ -121,7 +132,7 @@ def github_webhook():
 
                 actor = payload["sender"]["login"]
                 time = pr.get("merged_at") or pr.get("closed_at") or pr.get("created_at")
-                time = datetime.fromisoformat(time.replace("Z", "+00:00")).strftime("%Y-%m-%d %H:%M:%S")
+                time = to_pakistan_time(time)
                 pr_title = pr["title"]
                 from_branch = pr["head"]["ref"]
                 to_branch = pr["base"]["ref"]
@@ -140,7 +151,6 @@ def github_webhook():
                 )
                 
                 requests.post(GOOGLE_CHAT_WEBHOOK_TESING, json={"text": message})
-        # ---------------- Workflow Run Events ----------------
         elif event == "workflow_run":
             workflow = payload.get("workflow", {})
             workflow_name = workflow.get("name", "Unknown Workflow")
@@ -152,8 +162,20 @@ def github_webhook():
                 actor = run.get("actor", {}).get("login", "unknown")
                 repo = payload["repository"]["full_name"]
                 url = run.get("html_url")
-                time = run.get("updated_at") or run.get("created_at")
-                time = datetime.fromisoformat(time.replace("Z", "+00:00")).strftime("%Y-%m-%d %H:%M:%S")
+
+                # Convert UTC → Pakistan time
+                utc_time = run.get("updated_at") or run.get("created_at")
+                time = to_pakistan_time(utc_time)
+
+                # Pull Request info (if available)
+                pr_info = run.get("pull_requests", [])
+                if pr_info:
+                    pr_number = pr_info[0].get("number")
+                    pr_url = f"https://github.com/{repo}/pull/{pr_number}"
+                    pr_title = pr_info[0].get("title", f"PR #{pr_number}")
+                    pr_text = f"\n📌 *PR*: [{pr_title}]({pr_url})"
+                else:
+                    pr_text = ""
 
                 message = (
                     f"🚨 *Workflow Failed*\n"
@@ -162,9 +184,10 @@ def github_webhook():
                     f"👤 *Triggered By*: {actor}\n"
                     f"🗓️ *Time*: {time}\n"
                     f"🔗 {url}"
+                    f"{pr_text}"
                 )
-                requests.post(GOOGLE_CHAT_WEBHOOK_TESING, json={"text": message})
-        
+                send_chat_message(message)
+
         return jsonify({"status": "ok"}), 200
 
     except Exception as e:
