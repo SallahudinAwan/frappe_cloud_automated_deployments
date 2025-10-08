@@ -100,6 +100,39 @@ def set_state(environment_name, new_state, apps_deployed=None, deploy_candidate=
 def home():
     return "✅ Frappe Cloud → Google Chat Middleware is running!"
 
+@app.route("/github-webhook", methods=["POST"])
+def github_webhook():
+    try:
+        payload = request.json  # GitHub sends JSON
+        event = request.headers.get("X-GitHub-Event", "Unknown Event")
+        delivery_id = request.headers.get("X-GitHub-Delivery")
+
+        # Convert JSON to pretty string
+        payload_str = json.dumps(payload, indent=2)
+
+        # Build message
+        message = f"📢 *GitHub Webhook Received* \n" \
+                  f"Event: `{event}`\n" \
+                  f"Delivery ID: `{delivery_id}`\n\n" \
+                  f"Payload:\n```\n{payload_str[:4000]}\n```"  # Google Chat max 4k chars
+
+        # Send to Google Chat (if configured)
+        if GOOGLE_CHAT_WEBHOOK:
+            requests.post(GOOGLE_CHAT_WEBHOOK, json={"text": message})
+
+        # Also return JSON response
+        return jsonify({
+            "status": "success",
+            "event": event,
+            "delivery_id": delivery_id,
+            "message_preview": message[:300] + "..."  # Preview only
+        }), 200
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+
 @app.route("/status/<env>", methods=["GET"])
 def status(env):
     state, apps, candidate = get_state(env)
