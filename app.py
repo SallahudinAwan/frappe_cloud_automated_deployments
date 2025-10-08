@@ -101,33 +101,46 @@ def set_state(environment_name, new_state, apps_deployed=None, deploy_candidate=
 def home():
     return "✅ Frappe Cloud → Google Chat Middleware is running!"
 
+
 @app.route("/github-webhook", methods=["POST"])
 def github_webhook():
     try:
-        payload = request.json  # GitHub sends JSON
-        event = request.headers.get("X-GitHub-Event", "Unknown Event")
-        delivery_id = request.headers.get("X-GitHub-Delivery")
+        event = request.headers.get("X-GitHub-Event", "unknown")
+        payload = request.json
 
-        # Convert JSON to pretty string
-        payload_str = json.dumps(payload, indent=2)
+        # Only handle PR events
+        if event == "pull_request":
+            action = payload["action"]
+            pr = payload["pull_request"]
+            repo = payload["repository"]
 
-        # Build message
-        message = f"📢 *GitHub Webhook Received* \n" \
-                  f"Event: `{event}`\n" \
-                  f"Delivery ID: `{delivery_id}`\n\n" \
-                  f"Payload:\n```\n{payload_str[:4000]}\n```"  # Google Chat max 4k chars
+            if action in ["opened", "closed"]:
+                is_merged = pr.get("merged", False)
+                status = "Merged ✅" if is_merged else "Closed ❌" if action == "closed" else "Opened 🟢"
 
-        # Send to Google Chat (if configured)
-        if GOOGLE_CHAT_WEBHOOK_TESING:
-            requests.post(GOOGLE_CHAT_WEBHOOK_TESING, json={"text": message})
+                actor = payload["sender"]["login"]
+                time = pr.get("merged_at") or pr.get("closed_at") or pr.get("created_at")
+                time = datetime.fromisoformat(time.replace("Z", "+00:00")).strftime("%Y-%m-%d %H:%M:%S")
+                pr_title = pr["title"]
+                from_branch = pr["head"]["ref"]
+                to_branch = pr["base"]["ref"]
+                pr_url = pr["html_url"]
+                repo_name = repo["full_name"]
 
-        # Also return JSON response
-        return jsonify({
-            "status": "success",
-            "event": event,
-            "delivery_id": delivery_id,
-            "message_preview": message[:300] + "..."  # Preview only
-        }), 200
+                # Build text message
+                message = (
+                    f"🔔 *Pull Request {status}*\n"
+                    f"📌 *Title*: {pr_title}\n"
+                    f"🔀 *Branch*: {from_branch} → {to_branch}\n"
+                    f"👤 *Actor*: {actor}\n"
+                    f"🗓️ *Time*: {time}\n"
+                    f"📂 *Repository*: {repo_name}\n"
+                    f"🔗 {pr_url}"
+                )
+                
+                requests.post(GOOGLE_CHAT_WEBHOOK_TESING, json={"text": message})
+
+        return jsonify({"status": "ok"}), 200
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
