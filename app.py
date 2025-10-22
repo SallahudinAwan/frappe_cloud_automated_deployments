@@ -735,12 +735,13 @@ def handle_webhook():
         # If Site becomes Active, reset lock and send success card if apps info exists
         if data.get("doctype") == "Site" and data.get("status") == "Active":
             if check_site_update_status(data.get("name"), environment_name):
-                set_state(environment_name, "idle", None, None, None)
                 apps_info_str = current_db_state[1]
+                log.info("Apps: %s", apps_info_str)
                 if GOOGLE_CHAT_WEBHOOK:
                     card_message = build_card_success(environment_name, data, apps_info_str)
                     resp = requests.post(GOOGLE_CHAT_WEBHOOK, json=card_message)
-                    log.info("Posted success card: %s", resp.status_code)
+                    log.info("Posted success card: %s %s", resp.status_code, resp.text)
+                    set_state(environment_name, "idle", None, None, None)
 
         # If Deploy Candidate Build failed, trigger check_deploy_failure to post detailed failure
         if doctype == "Deploy Candidate Build" and status_val == "Failure":
