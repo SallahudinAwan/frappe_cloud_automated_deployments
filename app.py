@@ -263,7 +263,7 @@ def build_card_success(env: str, data: dict, apps: list):
     ]
 
     # Add "Apps Deployed" section only if apps exist
-    if apps and isinstance(apps, list) and len(apps) > 0:
+    if apps and len(apps) > 0:
         app_section = {
             "header": "Apps Deployed",
             "collapsible": True,
