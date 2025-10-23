@@ -699,7 +699,7 @@ def handle_webhook():
         # If a deploy candidate build arrives and no deployment is in progress, create thread and set lock
         if current_db_state[0] == "idle" and doctype == "Deploy Candidate Build":
             # post a manual-deploy card and capture chat thread id from response
-            imageURL = ENV_ICONS.get(env, "https://cdn-icons-png.freepik.com/512/6562/6562824.png")         
+            imageURL = ENV_ICONS.get(environment_name, "https://cdn-icons-png.freepik.com/512/6562/6562824.png")         
             manual_card = {
                 "cardsV2": [
                     {
