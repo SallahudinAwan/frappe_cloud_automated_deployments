@@ -25,6 +25,10 @@ import os
 import re
 from zoneinfo import ZoneInfo
 
+import auto_deploy
+import subprocess
+import sys
+
 import requests
 from flask import Flask, jsonify, request
 from sqlalchemy import create_engine, text
@@ -761,29 +765,35 @@ def handle_webhook():
 
 @app.route("/trigger-workflow/<env>", methods=["POST"])
 def trigger_workflow(env):
-    """
-    Trigger a GitHub Actions workflow dispatch to a fixed repo/workflow id.
-    """
     try:
         state, _, _, _ = get_state(env)
         if state == "in_progress":
             return jsonify({"status": "skipped", "message": "Deployment already running"}), 204
 
-        url = "https://api.github.com/repos/Waseela-Global/frappe_auto_deployments/actions/workflows/187848153/dispatches"
-        headers = {"Authorization": f"Bearer {GITHUB_TOKEN}", "Accept": "application/vnd.github+json"}
-        payload = {"ref": "master", "inputs": {"deploy_env": env.lower()}}
-        log.info("Triggering workflow: %s", payload)
-        resp = requests.post(url, headers=headers, json=payload)
+        data = request.get_json(force=True, silent=True) or {}
+        # Clone current environment and inject DEPLOY_ENV
+        env_vars = os.environ.copy()
+        env_vars["DEPLOY_ENV"] = env.lower()  # 👈 inject here
+        env_vars["ALLOWED_APPS_FROM_WORKFLOW"] = data.get("allowed_apps","")
+        
+        process = subprocess.Popen(
+            [sys.executable, "auto_deploy.py"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            env=env_vars  # 👈 pass it here
+        )
 
-        if resp.status_code == 204:
-            return jsonify({"status": "success", "message": f"{env} Workflow triggered"}), 200
-        else:
-            return jsonify({"status": "error", "code": resp.status_code, "response": resp.json()}), resp.status_code
+        for line in process.stdout:
+            print(line.strip())
 
-    except Exception as exc:
-        log.exception("Error triggering workflow")
-        return jsonify({"status": "error", "message": str(exc)}), 500
+        process.wait()
 
+        return jsonify({"status": "success", "message": f"Deployment started for {env}"}), 200
+
+    except Exception as e:
+        print("❌ Error triggering deployment:", e)
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 # ------------------------
 # Deploy failure checker (previously check_deploy_failure)
