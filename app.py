@@ -785,14 +785,14 @@ def trigger_workflow(env):
         )
 
         for line in process.stdout:
-            print(line.strip())
+            log.info(line.strip())
 
         process.wait()
 
         return jsonify({"status": "success", "message": f"Deployment started for {env}"}), 200
 
     except Exception as e:
-        print("❌ Error triggering deployment:", e)
+        log.info("❌ Error triggering deployment:", e)
         return jsonify({"status": "error", "message": str(e)}), 500
 
 # ------------------------
