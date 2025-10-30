@@ -107,6 +107,8 @@ def get_bench_info():
     """Fetch the release group (bench) info from Frappe Cloud."""
     url = "https://frappecloud.com/api/method/press.api.client.get"
     payload = {"doctype": "Release Group", "name": BENCH_NAME}
+    print(payload)
+    print(HEADERS)
     resp = requests.post(url, headers=HEADERS, json=payload)
     resp.raise_for_status()
     return resp.json()["message"]
