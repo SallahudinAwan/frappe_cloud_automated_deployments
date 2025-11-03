@@ -533,7 +533,7 @@ def github_webhook():
             conclusion = run.get("conclusion")
             status = run.get("status")
 
-            if conclusion == "failure":
+            if conclusion in ("failure","success"):
                 actor = run.get("actor", {}).get("login", "unknown")
                 repo = payload.get("repository", {}).get("full_name", "")
                 url = run.get("html_url", "")
