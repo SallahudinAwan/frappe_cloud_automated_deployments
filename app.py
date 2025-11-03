@@ -549,9 +549,13 @@ def github_webhook():
                     pr_text = f"\n📌 *PR*: [{pr_title}]({pr_url})"
                 else:
                     pr_text = ""
-
+                success_or_failure = ""
+                if conclusion == "failure":
+                    success_or_failure = "🚨 *Workflow Failed*\n"
+                elif conclusion == "success":
+                    success_or_failure = "✅ *Workflow Successful*\n"    
                 message = (
-                    f"🚨 *Workflow Failed*\n"
+                    f"{success_or_failure}"
                     f"⚙️ *Workflow*: {workflow_name}\n"
                     f"📂 *Repository*: {repo}\n"
                     f"👤 *Triggered By*: {actor}\n"
