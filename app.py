@@ -680,6 +680,7 @@ def handle_webhook():
     """
     try:
         payload = request.get_json(force=True)
+        log.info(payload)
         event = payload.get("event", "Unknown Event")
         data = payload.get("data", {}) or {}
 
