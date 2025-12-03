@@ -40,7 +40,7 @@ app = Flask(__name__)
 
 # Environment variables (required / optional)
 GOOGLE_CHAT_WEBHOOK = os.getenv("GOOGLE_CHAT_WEBHOOK")
-GOOGLE_CHAT_WEBHOOK_TESTING = os.getenv("GOOGLE_CHAT_WEBHOOK_TESING")  # keep existing name for compatibility
+GOOGLE_CHAT_WEBHOOK_TESTING = os.getenv("GOOGLE_CHAT_WEBHOOK_TESTING")  # keep existing name for compatibility
 GOOGLE_CHAT_WEBHOOK_GITHUB = os.getenv("GOOGLE_CHAT_WEBHOOK_GITHUB")  # keep existing name for compatibility
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
