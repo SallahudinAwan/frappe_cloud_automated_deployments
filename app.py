@@ -694,7 +694,7 @@ def github_webhook_v2():
                             "cardId": f"github-workflow-{run.get('id')}",
                             "card": {
                                 "header": {
-                                    "title": f"{repo} - {workflow_name}",
+                                    "title": f"{workflow_name} - {repo}",
                                     "subtitle": success_or_failure,
                                     "imageUrl": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
                                     "imageType": "CIRCLE",
