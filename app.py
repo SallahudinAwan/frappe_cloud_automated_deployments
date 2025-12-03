@@ -41,6 +41,7 @@ app = Flask(__name__)
 # Environment variables (required / optional)
 GOOGLE_CHAT_WEBHOOK = os.getenv("GOOGLE_CHAT_WEBHOOK")
 GOOGLE_CHAT_WEBHOOK_TESTING = os.getenv("GOOGLE_CHAT_WEBHOOK_TESING")  # keep existing name for compatibility
+GOOGLE_CHAT_WEBHOOK_GITHUB = os.getenv("GOOGLE_CHAT_WEBHOOK_GITHUB")  # keep existing name for compatibility
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
 FC_API_KEY = os.getenv("FC_API_KEY")
@@ -157,6 +158,31 @@ def set_state(environment_name: str, new_state: str, apps_deployed=None, deploy_
             }
         )
     log.info("set_state(%s -> %s) chat_thread=%s", environment_name, new_state, chat_thread_id)
+
+
+def get_github_db_state(pr_id: str):
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("SELECT pr_id, google_thread_id FROM github_db WHERE pr_id = :pr_id"),
+            {"pr_id": pr_id}
+        )
+        row = result.fetchone()
+        if not row:
+            return (None, None)
+        log.info("set_pr_id(%s) chat_thread=%s", row[0], row[1])
+        return (row[0], row[1])
+
+def insert_github_db_state(pr_id: int, google_thread_id: str):
+    with engine.begin() as conn:
+        conn.execute(
+            text("""
+                INSERT INTO github_db (pr_id, google_thread_id)
+                VALUES (:pr_id, :google_thread_id)
+            """),
+            {"pr_id": f"{pr_id}", "google_thread_id": google_thread_id}
+        )
+        log.info("set_pr_id(%s) chat_thread=%s", pr_id, google_thread_id)
+
 
 
 def set_chat_thread(environment_name: str, chat_thread_id=None) -> None:
@@ -484,6 +510,249 @@ def build_card_failure_detailed(env: str, candidate: str, title: str, html_messa
 def home():
     return "✅ Frappe Cloud → Google Chat Middleware is running!"
 
+
+def github_pr_card(repo_name,status_text,pr_title,from_branch,to_branch,actor,time,pr_url):
+    card = {
+        "cardsV2": [
+            {
+                "cardId": "github-pr-start",
+                "card": {
+                    "header": {
+                        "title": f"{repo_name}",
+                        "subtitle": status_text,
+                        "imageUrl": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
+                        "imageType": "CIRCLE"
+                    },
+                    "sections": [
+                        {
+                            "widgets": [
+                                {"decoratedText": {"topLabel": "PR Title", "text": f"{pr_title}"}},
+                                {"decoratedText": {"topLabel": "From to Branch", "text": f"{from_branch} to {to_branch}"}},
+                                {"decoratedText": {"topLabel": "Actor", "text": actor}},
+                                {"decoratedText": {"topLabel": "Time", "text": time}},
+                            ]
+                        },
+                        {
+                            "widgets": [
+                                {"decoratedText": {"topLabel": "PR Link", "text": ""}},
+                                {
+                                    "buttonList": {
+                                        "buttons": [
+                                            {
+                                                "text": pr_url,
+                                                "onClick": {
+                                                    "openLink": {
+                                                        "url": pr_url
+                                                    }
+                                                }
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+
+    return card
+
+
+def github_workflow_card(repo_name,status_text,pr_title,from_branch,to_branch,actor,time,pr_url):
+    card = {
+        "cardsV2": [
+            {
+                "cardId": "github-pr-start",
+                "card": {
+                    "header": {
+                        "title": f"{repo_name}",
+                        "subtitle": status_text,
+                        "imageUrl": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
+                        "imageType": "CIRCLE"
+                    },
+                    "sections": [
+                        {
+                            "widgets": [
+                                {"decoratedText": {"topLabel": "PR Title", "text": f"{pr_title}"}},
+                                {"decoratedText": {"topLabel": "From to Branch", "text": f"{from_branch} to {to_branch}"}},
+                                {"decoratedText": {"topLabel": "Actor", "text": actor}},
+                                {"decoratedText": {"topLabel": "Time", "text": time}},
+                            ]
+                        },
+                        {
+                            "widgets": [
+                                {"decoratedText": {"topLabel": "PR Link", "text": ""}},
+                                {
+                                    "buttonList": {
+                                        "buttons": [
+                                            {
+                                                "text": pr_url,
+                                                "onClick": {
+                                                    "openLink": {
+                                                        "url": pr_url
+                                                    }
+                                                }
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+
+    return card
+
+@app.route("/github-webhook-v2", methods=["POST"])
+def github_webhook_v2():
+    """
+    Handle GitHub webhooks. Supports:
+    - pull_request (opened/closed) -> sends a textual notification
+    - workflow_run (failures/success) -> sends a textual notification in PR thread if possible
+    """
+    try:
+        event = request.headers.get("X-GitHub-Event", "unknown")
+        payload = request.get_json(force=True)
+        # ----------------------------
+        # Pull Request Handling
+        # ----------------------------
+        if event == "pull_request":
+            action = payload.get("action")
+            pr = payload.get("pull_request", {})
+            repo = payload.get("repository", {})
+
+            if action in ("opened", "closed"):
+                is_merged = pr.get("merged", False)
+                status_text = "Merged ✅" if is_merged else ("Closed ❌" if action == "closed" else "Opened 🟢")
+
+                actor = payload.get("sender", {}).get("login", "unknown")
+                time_raw = pr.get("merged_at") or pr.get("closed_at") or pr.get("created_at")
+                time = to_pakistan_time(time_raw)
+                pr_title = pr.get("title", "")
+                from_branch = pr.get("head", {}).get("ref", "")
+                to_branch = pr.get("base", {}).get("ref", "")
+                pr_url = pr.get("html_url", "")
+                repo_name = repo.get("full_name", "")
+                github_card = github_pr_card(repo_name,"Pull Request "+status_text,pr_title,from_branch,to_branch,actor,time,pr_url)
+
+                if action == "opened":
+                    res = requests.post(GOOGLE_CHAT_WEBHOOK_TESTING, json=github_card).json()
+                    insert_github_db_state(pr.get("id"),res.get("thread", {}).get("name"))
+                else:
+                    pr_id,thread_id = get_github_db_state(str(pr.get("id")))
+                    github_card["thread"] = {"name": thread_id}
+                    requests.post(GOOGLE_CHAT_WEBHOOK_TESTING + "&messageReplyOption=REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD", json=github_card)
+        elif event == "workflow_run":
+            run = payload.get("workflow_run", {})
+            workflow_name = payload.get("workflow", {}).get("name", "Unknown Workflow")
+            conclusion = run.get("conclusion")
+            status = run.get("status")
+
+            if conclusion in ("failure","success"):
+                actor = run.get("actor", {}).get("login", "unknown")
+                repo = payload.get("repository", {}).get("full_name", "")
+                url = run.get("html_url", "")
+
+                utc_time = run.get("updated_at") or run.get("created_at")
+                time = to_pakistan_time(utc_time)
+
+                pr_info = run.get("pull_requests", [])
+                thread_id = None
+                pr_text = ""
+
+                if pr_info:
+                    # Workflow directly linked to PR
+                    pr_id = pr_info[0].get("id")
+                    pr_number = pr_info[0].get("number")
+                    pr_title = pr_info[0].get("title", f"PR #{pr_number}")
+                    pr_url = f"https://github.com/{repo}/pull/{pr_number}"
+                    _, thread_id = get_github_db_state(str(pr_id))
+                    pr_text = f"\n📌 *PR*: [{pr_title}]({pr_url})"
+
+                else:
+                    # Workflow triggered by push, try to find recent merged PR for branch
+                    branch_name = run.get("head_branch")
+                    pr_id = find_recent_pr_for_branch(repo, branch_name)  # Implemented separately
+                    if pr_id:
+                        _, thread_id = get_github_db_state(str(pr_id))
+                        pr_text = f"\n📌 *PR Link*: See original PR thread"
+
+                success_or_failure = ""
+                if conclusion == "failure":
+                    success_or_failure = "🚨 Workflow Failed"
+                elif conclusion == "success":
+                    success_or_failure = "✅ Workflow Successful"    
+
+                message = {
+                    "cardsV2": [
+                        {
+                            "cardId": f"github-workflow-{run.get('id')}",
+                            "card": {
+                                "header": {
+                                    "title": f"{repo} - {workflow_name}",
+                                    "subtitle": success_or_failure,
+                                    "imageUrl": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
+                                    "imageType": "CIRCLE",
+                                },
+                                "sections": [
+                                    {"widgets": [
+                                        {"decoratedText": {"topLabel": "Status", "text": conclusion.capitalize()}},
+                                        {"decoratedText": {"topLabel": "Triggered By", "text": actor}},
+                                        {"decoratedText": {"topLabel": "Time", "text": time}},
+                                        {"decoratedText": {"topLabel": "URL", "text": ""}},
+                                        {
+                                            "buttonList": {
+                                                "buttons": [
+                                                    {
+                                                        "text": url,
+                                                        "onClick": {
+                                                            "openLink": {
+                                                                "url": url
+                                                            }
+                                                        }
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    ]}
+                                ]
+                            }
+                        }
+                    ]
+                }
+
+                # Post to thread if available
+                if thread_id:
+                    message["thread"] = {"name": thread_id}
+                    requests.post(GOOGLE_CHAT_WEBHOOK_TESTING + "&messageReplyOption=REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD", json=message)
+                else:
+                    requests.post(GOOGLE_CHAT_WEBHOOK_TESTING, json=message)
+
+        return jsonify({"status": "ok"}), 200
+    except Exception as exc:
+        log.exception("Error handling GitHub webhook")
+        return jsonify({"status": "error", "message": str(exc)}), 500
+
+# Utility to find the recent merged PR for a branch
+def find_recent_pr_for_branch(repo, branch):
+    try:
+        url = f"https://api.github.com/repos/{repo}/pulls?state=closed&base={branch}&sort=updated&direction=desc"
+        headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+        resp = requests.get(url, headers=headers)
+        resp.raise_for_status()
+        for pr in resp.json():
+            if pr.get("merged_at"):
+                return pr.get("id")
+        return None
+    except Exception as e:
+        log.exception(f"Error finding recent PR for {repo}/{branch}: {e}")
+        return None
+
 @app.route("/github-webhook", methods=["POST"])
 def github_webhook():
     """
@@ -522,8 +791,8 @@ def github_webhook():
                     f"📂 *Repository*: {repo_name}\n"
                     f"🔗 {pr_url}"
                 )
-                if GOOGLE_CHAT_WEBHOOK_TESTING:
-                    requests.post(GOOGLE_CHAT_WEBHOOK_TESTING, json={"text": message})
+                if GOOGLE_CHAT_WEBHOOK_GITHUB:
+                    requests.post(GOOGLE_CHAT_WEBHOOK_GITHUB, json={"text": message})
                 else:
                     log.info("No testing webhook set; PR notification skipped.")
 
@@ -563,8 +832,8 @@ def github_webhook():
                     f"🔗 {url}"
                     f"{pr_text}"
                 )
-                if GOOGLE_CHAT_WEBHOOK_TESTING:
-                    requests.post(GOOGLE_CHAT_WEBHOOK_TESTING, json={"text": message})
+                if GOOGLE_CHAT_WEBHOOK_GITHUB:
+                    requests.post(GOOGLE_CHAT_WEBHOOK_GITHUB, json={"text": message})
                 else:
                     log.info("No testing webhook set; workflow failure notification skipped.")
 
