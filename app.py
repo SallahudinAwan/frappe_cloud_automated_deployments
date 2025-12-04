@@ -172,16 +172,37 @@ def get_github_db_state(pr_id: str):
         log.info("set_pr_id(%s) chat_thread=%s", row[0], row[1])
         return (row[0], row[1])
 
-def insert_github_db_state(pr_id: int, google_thread_id: str):
+def get_thread_id_from_repo_and_branch(repo_name: str, branch_name: str):
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("""
+                SELECT pr_id, google_thread_id 
+                FROM github_db 
+                WHERE repo_name = :repo_name 
+                  AND branch_name = :branch_name
+                ORDER BY id DESC
+                LIMIT 1
+            """),
+            {"repo_name": repo_name, "branch_name": branch_name}
+        )
+
+        row = result.fetchone()
+        if not row:
+            return (None, None)
+
+        log.info("LATEST pr_id(%s) chat_thread=%s", row[0], row[1])
+        return (row[0], row[1])
+
+def insert_github_db_state(pr_id: int, google_thread_id: str, repo_name: str,to_branch: str):
     with engine.begin() as conn:
         conn.execute(
             text("""
-                INSERT INTO github_db (pr_id, google_thread_id)
-                VALUES (:pr_id, :google_thread_id)
+                INSERT INTO github_db (pr_id, google_thread_id,repo_name,branch_name)
+                VALUES (:pr_id, :google_thread_id,:repo_name,:branch_name)
             """),
-            {"pr_id": f"{pr_id}", "google_thread_id": google_thread_id}
+            {"pr_id": f"{pr_id}", "google_thread_id": google_thread_id,"repo_name":repo_name,"branch_name":to_branch}
         )
-        log.info("set_pr_id(%s) chat_thread=%s", pr_id, google_thread_id)
+        log.info("set_pr_id(%s) chat_thread=%s repo_name=%s branch_name=%s", pr_id, google_thread_id,repo_name,to_branch)
 
 
 
@@ -642,7 +663,7 @@ def github_webhook_v2():
 
                 if action == "opened":
                     res = requests.post(GOOGLE_CHAT_WEBHOOK_TESTING, json=github_card).json()
-                    insert_github_db_state(pr.get("id"),res.get("thread", {}).get("name"))
+                    insert_github_db_state(pr.get("id"),res.get("thread", {}).get("name"),repo_name,to_branch)
                 else:
                     pr_id,thread_id = get_github_db_state(str(pr.get("id")))
                     github_card["thread"] = {"name": thread_id}
@@ -681,7 +702,9 @@ def github_webhook_v2():
                     if pr_id:
                         _, thread_id = get_github_db_state(str(pr_id))
                         pr_text = f"\n📌 *PR Link*: See original PR thread"
-
+                    else:
+                        pr_id,thread_id = get_thread_id_from_repo_and_branch(repo,branch_name)
+                        
                 success_or_failure = ""
                 if conclusion == "failure":
                     success_or_failure = "🚨 Workflow Failed"
