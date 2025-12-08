@@ -179,11 +179,10 @@ def get_thread_id_from_repo_and_branch(repo_name: str, branch_name: str):
                 SELECT pr_id, google_thread_id 
                 FROM github_db 
                 WHERE repo_name = :repo_name 
-                  AND branch_name = :branch_name
                 ORDER BY id DESC
                 LIMIT 1
             """),
-            {"repo_name": repo_name, "branch_name": branch_name}
+            {"repo_name": repo_name}
         )
 
         row = result.fetchone()
