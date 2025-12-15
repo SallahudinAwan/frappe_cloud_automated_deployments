@@ -697,12 +697,7 @@ def github_webhook_v2():
                 else:
                     # Workflow triggered by push, try to find recent merged PR for branch
                     branch_name = run.get("head_branch")
-                    pr_id = find_recent_pr_for_branch(repo, branch_name)  # Implemented separately
-                    if pr_id:
-                        _, thread_id = get_github_db_state(str(pr_id))
-                        pr_text = f"\n📌 *PR Link*: See original PR thread"
-                    else:
-                        pr_id,thread_id = get_thread_id_from_repo_and_branch(repo,branch_name)
+                    pr_id,thread_id = get_thread_id_from_repo_and_branch(repo,branch_name)
                         
                 success_or_failure = ""
                 if conclusion == "failure":
