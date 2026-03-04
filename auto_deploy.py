@@ -105,7 +105,7 @@ def set_state(new_state, apps_payload=None, deploy_candidate=None, chat_thread_i
 
 def get_bench_info():
     """Fetch the release group (bench) info from Frappe Cloud."""
-    url = "https://frappecloud.com/api/method/press.api.client.get"
+    url = "https://cloud.frappe.io/api/method/press.api.client.get"
     payload = {"doctype": "Release Group", "name": BENCH_NAME}
     print(payload)
     print(HEADERS)
@@ -199,7 +199,7 @@ def trigger_deployment(bench_name, apps, apps_info, sites):
     Trigger a deployment (simulation) and send Google Chat notification.
     In production, replace with Press API endpoint.
     """
-    url = "https://frappecloud.com/api/method/press.api.bench.deploy_and_update"
+    url = "https://cloud.frappe.io/api/method/press.api.bench.deploy_and_update"
     payload = {
         "name": bench_name,
         "apps": apps,

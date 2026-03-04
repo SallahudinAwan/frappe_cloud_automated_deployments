@@ -881,7 +881,7 @@ def check_site_update_status(site_name: str, env: str):
     If updates are available, sends a Google Chat alert.
     """
 
-    api_url = "https://frappecloud.com/api/method/press.api.client.get"
+    api_url = "https://cloud.frappe.io/api/method/press.api.client.get"
     payload = {
         "doctype": "Site",
         "name": site_name
@@ -1103,7 +1103,7 @@ def check_deploy_failure(env):
         headers = {"Authorization": f"token {FC_API_KEY}:{FC_API_SECRET}", "Content-Type": "application/json"}
 
         # Step 1: look for Press Notification errors for the candidate
-        url_list = "https://frappecloud.com/api/method/press.api.client.get_list"
+        url_list = "https://cloud.frappe.io/api/method/press.api.client.get_list"
         payload_list = {
             "doctype": "Press Notification",
             "fields": ["title", "name"],
@@ -1121,7 +1121,7 @@ def check_deploy_failure(env):
 
         if notifications:
             notif_id = notifications[0]["name"]
-            url_get = "https://frappecloud.com/api/method/press.api.client.get"
+            url_get = "https://cloud.frappe.io/api/method/press.api.client.get"
             payload_get = {"doctype": "Press Notification", "name": notif_id}
             resp2 = requests.post(url_get, headers=headers, json=payload_get)
             resp2.raise_for_status()
@@ -1145,7 +1145,7 @@ def check_deploy_failure(env):
             return jsonify({"status": "failure", "error": error_text}), 202
 
         # Step 2: fallback check candidate build steps/status
-        url_candidate = "https://frappecloud.com/api/method/press.api.client.get"
+        url_candidate = "https://cloud.frappe.io/api/method/press.api.client.get"
         payload_candidate = {"doctype": "Deploy Candidate Build", "name": candidate}
         resp3 = requests.post(url_candidate, headers=headers, json=payload_candidate)
         resp3.raise_for_status()
