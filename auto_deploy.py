@@ -33,6 +33,10 @@ ENV_CONFIG = {
     "production": {
         "bench": os.getenv("PROD_BENCH_NAME", "bench-25568"),
         "allowed_apps": set(app.strip() for app in os.getenv("PROD_ALLOWED_APPS", "").split(",") if app.strip())
+    },
+    "version16":{
+        "bench": os.getenv("VERSION16_BENCH_NAME", "bench-25568"),
+        "allowed_apps": set(app.strip() for app in os.getenv("VERSION16_ALLOWED_APPS", "").split(",") if app.strip())
     }
 }
 
