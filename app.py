@@ -71,12 +71,14 @@ SITE_ENV_MAP = {
     "waseela.frappe.cloud": "Staging",
     "waseela-os-preview.s.frappe.cloud": "Preview",
     "waseela-os-production.s.frappe.cloud": "Production",
+    "os-v16.frappe.cloud": "Version-16",
 }
 
 BENCH_ENV_MAP = {
     "bench-17853": "Staging",
     "bench-25861": "Preview",
     "bench-25568": "Production",
+    "bench-37506": "Version-16"
 }
 
 ALLOWED_STATUS_MAP = {
