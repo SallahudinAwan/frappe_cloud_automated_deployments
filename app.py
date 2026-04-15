@@ -91,7 +91,8 @@ ALLOWED_STATUS_MAP = {
 ENV_ICONS = {
     "Staging": "https://cdn-icons-png.freepik.com/512/6562/6562824.png?uid=R218549038&ga=GA1.1.1901556257.1760382396",
     "Preview": "https://cdn-icons-png.freepik.com/512/6561/6561218.png?uid=R218549038&ga=GA1.1.1901556257.1760382396",
-    "Production": "https://cdn-icons-png.freepik.com/512/6561/6561171.png?uid=R218549038&ga=GA1.1.1901556257.1760382396"
+    "Production": "https://cdn-icons-png.freepik.com/512/6561/6561171.png?uid=R218549038&ga=GA1.1.1901556257.1760382396",
+    "Version16": "https://cdn-icons-png.freepik.com/512/16695/16695467.png?ga=GA1.1.1901556257.1760382396"
 }    
 
 
