@@ -2,3 +2,6 @@
 venv/
 .vscode
 deployment_lock.db
+__pycache__/
+*.pyc
+.env
