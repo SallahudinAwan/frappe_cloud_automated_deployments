@@ -7,6 +7,7 @@ from flask import Blueprint, jsonify, request
 
 from .services import detect_deploy_failure
 from ..db import get_state
+from ..security import require_shared_secret
 
 log = logging.getLogger(__name__)
 
@@ -18,6 +19,10 @@ def get_deployment_status(env: str):
     """
     Returns the current deployment_lock state for the requested environment.
     """
+    auth_error = require_shared_secret(request, "status", "DEPLOY_STATUS_TOKEN")
+    if auth_error:
+        return auth_error
+
     state, apps, candidate, chat_thread_id = get_state(env)
     return jsonify(
         {
@@ -33,6 +38,10 @@ def get_deployment_status(env: str):
 @bp.route("/trigger-workflow/<env>", methods=["POST"])
 def trigger_deployment_workflow(env: str):
     try:
+        auth_error = require_shared_secret(request, "trigger-workflow", "DEPLOY_WORKFLOW_TOKEN")
+        if auth_error:
+            return auth_error
+
         state, _, _, _ = get_state(env)
         if state == "in_progress":
             return jsonify({"status": "skipped", "message": "Deployment already running"}), 204
@@ -68,6 +77,9 @@ def trigger_deployment_workflow(env: str):
 # ------------------------
 @bp.route("/check-deploy-failure/<env>", methods=["GET"])
 def check_deployment_failure(env: str):
+    auth_error = require_shared_secret(request, "check-deploy-failure", "DEPLOY_STATUS_TOKEN")
+    if auth_error:
+        return auth_error
+
     payload, status_code = detect_deploy_failure(env)
     return jsonify(payload), status_code
-
