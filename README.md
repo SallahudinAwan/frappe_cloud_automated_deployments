@@ -62,8 +62,17 @@ Alternative: edit `SITE_ENV_MAP` and `BENCH_ENV_MAP` directly in `frappe_cloud_d
 GitHub integration:
 
 - `GITHUB_TOKEN`
+- `GITHUB_WEBHOOK_SECRET` (recommended; validates `X-Hub-Signature-256`)
+- `GITHUB_WEBHOOK_TOKEN` (fallback token if signature validation is not used)
 - `GOOGLE_CHAT_WEBHOOK_TESTING` (used by `/github-webhook-v2`)
 - `GOOGLE_CHAT_WEBHOOK_GITHUB` (used by `/github-webhook`)
+
+Inbound webhook/API security:
+
+- `INBOUND_SHARED_TOKEN` (single shared secret for all protected inbound endpoints)
+- `FRAPPE_CLOUD_WEBHOOK_TOKEN` (optional override for `/frappe-cloud-webhook`)
+- `DEPLOY_WORKFLOW_TOKEN` (optional override for `/trigger-workflow/<env>`)
+- `DEPLOY_STATUS_TOKEN` (optional override for `/status/<env>` and `/check-deploy-failure/<env>`)
 
 Auto deploy runner:
 
@@ -147,6 +156,7 @@ CREATE INDEX IF NOT EXISTS github_db_repo_name_id_idx
    - `FC_API_KEY`, `FC_API_SECRET`
    - `GOOGLE_CHAT_WEBHOOK`
    - `SITE_ENV_MAP_JSON`, `BENCH_ENV_MAP_JSON`
+   - Security: `INBOUND_SHARED_TOKEN` (or endpoint-specific tokens), and `GITHUB_WEBHOOK_SECRET`
    - Optional: `GITHUB_TOKEN`, `GOOGLE_CHAT_WEBHOOK_TESTING`, `GOOGLE_CHAT_WEBHOOK_GITHUB`
    - Optional runtime: `LOG_LEVEL`, `PRESS_API_TIMEOUT_SECONDS`, `GITHUB_API_TIMEOUT_SECONDS`, `GOOGLE_CHAT_TIMEOUT_SECONDS`
 5. Deploy. Your base URL will commonly look like `https://<service-name>.onrender.com/`.
@@ -156,8 +166,18 @@ CREATE INDEX IF NOT EXISTS github_db_repo_name_id_idx
 Use your Render base URL:
 
 - **Health check:** `GET /`
-- **Frappe Cloud webhook:** `POST /frappe-cloud-webhook`
-- **GitHub webhooks:** `POST /github-webhook` and/or `POST /github-webhook-v2`
+- **Frappe Cloud webhook:** `POST /frappe-cloud-webhook` (must send `Authorization: Bearer <token>` or `X-Webhook-Token: <token>`)
+- **GitHub webhooks:** `POST /github-webhook` and/or `POST /github-webhook-v2` (must use `GITHUB_WEBHOOK_SECRET` signature verification)
+- **Manual workflow trigger:** `POST /trigger-workflow/<env>` (must send token)
+
+Example manual trigger call:
+
+```bash
+curl -X POST "https://<service-name>.onrender.com/trigger-workflow/staging" \
+  -H "Authorization: Bearer $DEPLOY_WORKFLOW_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"allowed_apps":"frappe,erpnext"}'
+```
 
 ### Free tier notes
 
