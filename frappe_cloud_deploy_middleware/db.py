@@ -7,6 +7,25 @@ from .config import DATABASE_URL
 
 log = logging.getLogger(__name__)
 
+ENV_NAME_MAP = {
+    "staging": "Staging",
+    "preview": "Preview",
+    "production": "Production",
+    "version16": "Version16",
+}
+
+
+def normalize_environment_name(environment_name: str) -> str:
+    """
+    Normalize environment identifiers used by API routes/workflows to DB row IDs.
+    Examples: "staging" -> "Staging", "Staging" -> "Staging"
+    """
+    raw = (environment_name or "").strip()
+    if not raw:
+        return raw
+    return ENV_NAME_MAP.get(raw.lower(), raw)
+
+
 # Fail fast with a clear error if required configuration is missing.
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL is required (env var DATABASE_URL is not set).")
@@ -54,12 +73,13 @@ def get_state(environment_name: str):
     Return tuple (state, apps_deployed, current_deploy_candidate, chat_thread_id)
     or (None, None, None, None) if missing.
     """
+    normalized_env = normalize_environment_name(environment_name)
     with engine.begin() as conn:
         result = conn.execute(
             text(
                 "SELECT state, apps_deployed, current_deploy_candidate, chat_thread_id FROM deployment_lock WHERE id = :env"
             ),
-            {"env": environment_name},
+            {"env": normalized_env},
         )
         row = result.fetchone()
         if not row:
@@ -73,6 +93,7 @@ def set_state(
     """
     Update deployment_lock row. apps_deployed may be JSON-serializable or None.
     """
+    normalized_env = normalize_environment_name(environment_name)
     with engine.begin() as conn:
         conn.execute(
             text(
@@ -90,11 +111,11 @@ def set_state(
                 "state": new_state,
                 "apps_deployed": json.dumps(apps_deployed) if apps_deployed is not None else None,
                 "deploy_candidate": deploy_candidate,
-                "env": environment_name,
+                "env": normalized_env,
                 "chat_thread_id": chat_thread_id,
             },
         )
-    log.info("set_state(%s -> %s) chat_thread=%s", environment_name, new_state, chat_thread_id)
+    log.info("set_state(%s -> %s) chat_thread=%s", normalized_env, new_state, chat_thread_id)
 
 
 def get_github_db_state(pr_id: str):
@@ -148,6 +169,7 @@ def set_chat_thread(environment_name: str, chat_thread_id=None) -> None:
     """
     Update deployment_lock row. apps_deployed may be JSON-serializable or None.
     """
+    normalized_env = normalize_environment_name(environment_name)
     with engine.begin() as conn:
         conn.execute(
             text(
@@ -158,8 +180,8 @@ def set_chat_thread(environment_name: str, chat_thread_id=None) -> None:
             """
             ),
             {
-                "env": environment_name,
+                "env": normalized_env,
                 "chat_thread_id": chat_thread_id,
             },
         )
-    log.info("set_chat_thread(%s) chat_thread=%s", environment_name, chat_thread_id)
+    log.info("set_chat_thread(%s) chat_thread=%s", normalized_env, chat_thread_id)

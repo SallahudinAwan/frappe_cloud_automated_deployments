@@ -6,7 +6,7 @@ import sys
 from flask import Blueprint, jsonify, request
 
 from .services import detect_deploy_failure
-from ..db import get_state
+from ..db import get_state, normalize_environment_name
 from ..security import require_shared_secret
 
 log = logging.getLogger(__name__)
@@ -23,10 +23,11 @@ def get_deployment_status(env: str):
     if auth_error:
         return auth_error
 
-    state, apps, candidate, chat_thread_id = get_state(env)
+    normalized_env = normalize_environment_name(env)
+    state, apps, candidate, chat_thread_id = get_state(normalized_env)
     return jsonify(
         {
-            "environment": env,
+            "environment": normalized_env,
             "state": state,
             "apps_deployed": apps,
             "current_deploy_candidate": candidate,
@@ -42,14 +43,15 @@ def trigger_deployment_workflow(env: str):
         if auth_error:
             return auth_error
 
-        state, _, _, _ = get_state(env)
+        normalized_env = normalize_environment_name(env)
+        state, _, _, _ = get_state(normalized_env)
         if state == "in_progress":
             return jsonify({"status": "skipped", "message": "Deployment already running"}), 204
 
         data = request.get_json(force=True, silent=True) or {}
         # Clone current environment and inject DEPLOY_ENV
         env_vars = os.environ.copy()
-        env_vars["DEPLOY_ENV"] = env.lower()  # 👈 inject here
+        env_vars["DEPLOY_ENV"] = normalized_env.lower()  # 👈 inject here
         env_vars["ALLOWED_APPS_FROM_WORKFLOW"] = data.get("allowed_apps", "")
 
         process = subprocess.Popen(
@@ -65,7 +67,7 @@ def trigger_deployment_workflow(env: str):
 
         process.wait()
 
-        return jsonify({"status": "success", "message": f"Deployment started for {env}"}), 200
+        return jsonify({"status": "success", "message": f"Deployment started for {normalized_env}"}), 200
 
     except Exception as e:
         log.exception("Error triggering deployment workflow for env=%s", env)
